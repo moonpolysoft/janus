@@ -28,7 +28,8 @@
           barrier,
           args,
           n,
-          finished,
+          good, 
+          bad,
           min,
           max, 
           avg,
@@ -51,7 +52,8 @@ run(Bot, Host, Port, Message, Expected, N)
       bot = Bot,
       barrier = Barrier,
       n = N,
-      finished = 0,
+      good = 0, 
+      bad = 0,
       min = 99999999,
       max = 0,
       avg = 0,
@@ -84,7 +86,7 @@ run(State, N) ->
     run(State#state{launchers = L}, N - 1).
 
 wait(State, N, M) 
-  when State#state.finished < State#state.n ->
+  when State#state.good + State#state.bad < State#state.n ->
     receive
         connected ->
             wait(State, N + 1, M);
@@ -93,11 +95,14 @@ wait(State, N, M)
         subscribing ->
             wait(State, N, M + 1);
         {success, Latency} ->
-            State1 = State#state{finished = State#state.finished + 1},
-            State2 = update_latency(State1, Latency),
-            wait(State2#state{stats = [Latency|State2#state.stats]}, N, M);
+            State1 = update_latency(State, Latency),
+            State2 = State1#state{
+                       good = State1#state.good + 1,
+                       stats = [Latency|State1#state.stats]
+                      },
+            wait(State2, N, M);
         failure ->
-            wait(State#state{finished = State#state.finished + 1}, N, M);
+            wait(State#state{bad = State#state.bad + 1}, N, M);
         {tcp, _, _} ->
             wait(State, N, M);
         {'DOWN', _, process, Pid, normal}
@@ -114,9 +119,10 @@ wait(State, N, M)
 
 wait(State, _, _) ->
     Delta = timer:now_diff(now(), State#state.start) / 1000,
-    error_logger:info_msg("setup: ~.2.0fms, n: ~p, run: ~.2.0fms~n",
+    error_logger:info_msg("setup: ~.2.0fms, good: ~p, bad: ~p, run: ~.2.0fms~n",
                           [State#state.setup / 1000,
-                           State#state.n,
+                           State#state.good,
+                           State#state.bad,
                            Delta]),
     Histo = histo:build(State#state.max, State#state.stats),
     Len = length(State#state.stats),
