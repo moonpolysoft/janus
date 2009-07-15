@@ -59,7 +59,7 @@ run(Bot, Host, Port, Message, Expected, N)
       port = Port,
       message = Message,
       expected = Expected,
-      where = dict:new(),
+      where = ets:new(where, [set]),
       start = now(),
       stats = []
      },
@@ -79,8 +79,9 @@ run(State, N) ->
                                  State#state.barrier]),
     unlink(Pid),
     Where = State#state.where,
-    State1 = State#state{where = dict:update_counter(Srv, 1, Where)},
-    run(State1#state{launchers = L}, N - 1).
+    ets:insert_new(Where, [{Srv, 0}]),
+    ets:update_counter(Where, Srv, 1),
+    run(State#state{launchers = L}, N - 1).
 
 wait(State, N, M) 
   when State#state.finished < State#state.n ->
