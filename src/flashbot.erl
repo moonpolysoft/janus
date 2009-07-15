@@ -64,7 +64,7 @@ not_connected(connect, State) ->
     case gen_tcp:connect(State#state.host, 
                          State#state.port, 
                          [binary, 
-                          {active, once}, 
+                          {active, true}, 
                           {packet, 0},
                           {reuseaddr, true}
                          ], 3000) of
@@ -121,22 +121,22 @@ handle_info({'DOWN', _, process, Pid, normal}, Where, State)
     ?MODULE:Where(ready, State);
 
 handle_info({tcp, Sock, <<"PING", 1>>}, Where, State) ->
-    inet:setopts(Sock, [{active, once}]),
+%    inet:setopts(Sock, [{active, once}]),
     send(State#state.socket, <<"PONG">>, Where);
 
 handle_info({tcp, Sock, Bin}, Where, State) 
   when State#state.data /= undefined ->
-    inet:setopts(Sock, [{active, once}]),
+%    inet:setopts(Sock, [{active, once}]),
     Bin1 = list_to_binary([State#state.data, Bin]),
     State1 = State#state{data = undefined},
     ?MODULE:handle_info({tcp, Sock, Bin1}, Where, State1);
 
 handle_info({tcp, Sock, <<"ACK", 1>>}, Where, State) ->
-    inet:setopts(Sock, [{active, once}]),
+%    inet:setopts(Sock, [{active, once}]),
     ?MODULE:Where(ack, State);
 
 handle_info({tcp, Sock, Bin}, Where, State) ->
-    inet:setopts(Sock, [{active, once}]),
+%    inet:setopts(Sock, [{active, once}]),
     case bin:split("\\001", Bin) of
         {more, Bin} ->
             {next_state, Where, State#state{data = Bin}};
