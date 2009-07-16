@@ -31,7 +31,9 @@
           port,
           socket,
           transport,
-          state
+          state,
+          length_left,
+          data=[]
          }).
 
 set_socket(Ref, Sock) ->
@@ -49,7 +51,7 @@ init([Port]) ->
     {ok, #state{port = Port, transport = janus_flash }}.
 
 handle_cast({set_socket, Socket}, State) ->
-    inet:setopts(Socket, [{active, once}, 
+    inet:setopts(Socket, [{active, true}, 
                           {packet, 0}, 
                           binary]),    
     {ok, Ref} = (State#state.transport):start(Socket),
@@ -78,10 +80,12 @@ handle_info({tcp_closed, Socket}, State)
 %%     inet:setopts(Socket, [{active, once}]),
 %%     dispatch(Bin, publish, State);
 
-handle_info({tcp, Socket, <<"<regular-socket/>", 0, Bin/binary>>}, State)
-  when Socket == State#state.socket ->
-    inet:setopts(Socket, [{active, once}]),
-    dispatch(Bin, janus_flash, State);
+handle_info({tcp, Socket, D = <<Length:16/integer, Data/binary>>}, State=#state{length_left=undefined}) ->
+  % io:format("in ~p~n", [D]),
+  do_framing(Length, Socket, Data, State);
+handle_info({tcp, Socket, Data}, State=#state{length_left=Length, data = BinList}) ->
+  % io:format("in ~p~n", [Data]),
+  do_framing(Length, Socket, Data, State);
 
 handle_info({'EXIT', _, _}, State) ->
     %% ignore proxy exit
@@ -95,6 +99,27 @@ handle_info(Info, State)
 
 handle_info(Info, State) ->
     {stop, {unknown_info, Info}, State}.
+
+do_framing(Length, Socket, Data, State = #state{data=BinList}) ->
+  case byte_size(Data) of
+    Length -> 
+      handle_packet(iolist_to_binary(BinList ++ [Data]), Socket, State#state{data=[], length_left=undefined});
+    Size when Length < Size ->
+      <<Prefix:Length/binary, Tail/binary>> = Data,
+      {noreply, State1} = handle_packet(iolist_to_binary(BinList ++ [Prefix]), Socket, State#state{length_left=undefined,data=[]}),
+      ?MODULE:handle_info({tcp, Socket, Tail}, State1);
+    Size ->
+      {noreply, State#state{length_left=Length-Size, data = BinList ++ [Data]}}
+  end.
+
+handle_packet(D = <<"<regular-socket/>">>, Socket, State) ->
+  % io:format("got ~p~n", [D]),
+  % inet:setopts(Socket, [{active, once}]),
+  {noreply, State};
+  
+handle_packet(Bin, Socket, State) ->
+  % io:format("got ~p~n", [Bin]),
+  dispatch(Bin, janus_flash, State).
 
 terminate(_Reason, State) 
   when State#state.transport /= undefined ->
