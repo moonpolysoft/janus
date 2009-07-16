@@ -29,7 +29,7 @@
 
 -record(state, {
           topic,
-          subs = ets:new(subs, [set])
+          subs = ets:new(subs, [set, public])
          }).
 
 publish(Ref, Msg) ->
@@ -78,8 +78,12 @@ handle_cast({publish, Msg}, State) ->
                  process_flag(priority, high),
                  A = now(),
                  ets:foldr(F, ignore, State#state.subs),
-                 io:format("time: ~p~n", [timer:now_diff(now(), A) / 1000])
-         end,
+                 io:format("time: ~p~n", [timer:now_diff(now(), A) / 1000]),
+                 spawn(fun() -> 
+                     process_flag(priority, low), 
+                     ets:delete_all_objects(State#state.subs) 
+                   end)
+               end,
     spawn_link(F1),
     {noreply, State};
 
