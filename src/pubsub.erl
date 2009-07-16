@@ -29,7 +29,7 @@
 
 -record(state, {
           topic,
-          subs = []
+          subs = ets:new(subs, [set, public])
          }).
 
 publish(Ref, Msg) ->
@@ -55,18 +55,17 @@ handle_cast(stop, State) ->
     {stop, normal, State};
 
 handle_cast({subscribe, Pid, Socket}, State) ->
-    %% automatically unsubscribe when dead
-    Ref = erlang:monitor(process, Pid),
-    L = lists:keydelete(Pid, 1, State#state.subs),
-    Pid ! ack,
-    ets:insert(State#state.subs, {Pid, Ref, Socket}),
-    {noreply, State};
+  %% automatically unsubscribe when dead
+  Ref = erlang:monitor(process, Pid),
+  Pid ! ack,
+  ets:insert(State#state.subs, {Pid, Ref, Socket}),
+  {noreply, State};
 
 handle_cast({unsubscribe, Pid}, State) ->
     unsubscribe1(Pid, State);
 
 handle_cast({publish, Msg}, State) ->
-    io:format("info: ~p~n", [length(State#state.subs)]),
+    io:format("info: ~p~n", [ets:info(State#state.subs)]),
     Start = now(),
     {struct, L} = Msg,
     JSON = {struct, [{<<"timestamp">>, binary_to_list(term_to_binary(now()))}|L]},
@@ -103,12 +102,12 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 unsubscribe1(Pid, State) ->
-    case lists:keyfind(Pid, 1, State#state.subs) of
-        false ->
-            ok;
-        {Pid, Ref} ->
-            erlang:demonitor(Ref)
+    case ets:lookup(State#state.subs, Pid) of
+        [{_, Ref}] ->
+            erlang:demonitor(Ref),
+            ets:delete(State#state.subs, Pid);
+        _ ->
+            ok
     end,
-    L = lists:keydelete(Pid, 1, State#state.subs),
-    {noreply, State#state{subs = L}}.
+    {noreply, State}.
 
