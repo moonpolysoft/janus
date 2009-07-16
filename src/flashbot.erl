@@ -20,7 +20,7 @@
 %%% DEALINGS IN THE SOFTWARE.
 
 -module(flashbot).
--behavior(gen_fsm).
+-behavior(fast_gen_fsm).
 
 -export([start/1]).
 
@@ -45,7 +45,7 @@
          }).
 
 start(Args) ->
-    gen_fsm:start_link(?MODULE, Args, []).
+    fast_gen_fsm:start_link(?MODULE, Args, []).
 
 init([Parent, Host, Port, Expected, Barrier]) ->
     process_flag(save_calls, 64),
@@ -93,7 +93,7 @@ subscribed(token_timeout, State) ->
     {next_state, subscribed, State};
 
 subscribed(ready, State) ->    
-    Ref = gen_fsm:send_event_after(5000, timeout),
+    Ref = fast_gen_fsm:send_event_after(5000, timeout),
     {next_state, subscribed, State#state{start = now(), timer = Ref}};
 
 subscribed(timeout, State) ->    
@@ -162,7 +162,7 @@ handle_info(X, _, State)
   when element(1, X) == tcp_closed;
        element(1, X) == tcp_error ->
     State#state.parent ! disconnected,
-    catch gen_fsm:cancel_timer(State#state.timer),
+    catch fast_gen_fsm:cancel_timer(State#state.timer),
     reconnect(),
     {next_state, not_connected, State#state{timer = none}};
 
@@ -191,7 +191,7 @@ ping(State, Where) ->
     
 reconnect() ->
     flush(),
-    gen_fsm:send_event_after(random:uniform(100), connect).
+    fast_gen_fsm:send_event_after(random:uniform(100), connect).
 
 flush() ->
     receive 
