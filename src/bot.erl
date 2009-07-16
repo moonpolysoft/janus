@@ -183,14 +183,15 @@ update_latency(State, Latency) ->
 publish(Topic, Event, Data, Host, Port) ->
     {ok, Socket} = gen_tcp:connect(Host, Port, [binary, 
                                                 {nodelay, true},
-                                                {active, once},
+                                                {active, true},
                                                 {packet, 0}]),
     Data1 = {struct, [{<<"topic">>, Topic},
                       {<<"event">>, Event},
                       {<<"message_id">>,<<>>},
                       {<<"data">>, Data}]},
-    Data2 = mochijson2:encode(Data1),
-    ok = gen_tcp:send(Socket, [<<"<regular-socket/>">>, 0,
-                               <<"PUBLISH">>, 0, Data2]),
+    Data2 = iolist_to_binary(mochijson2:encode(Data1)),
+    Size = byte_size(Data2),
+    ok = gen_tcp:send(Socket, [<<17:16, "<regular-socket/>">>,
+                               <<7:16, "PUBLISH">>, <<Size:16>>, Data2]),
     gen_tcp:close(Socket).
 

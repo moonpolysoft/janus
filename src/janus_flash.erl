@@ -4,9 +4,9 @@
 
 -record(state, {
           socket,
-          data,
           proxy,
-          token
+          token,
+          last_cmd
          }).
 
 start(Socket) ->
@@ -20,8 +20,9 @@ start(Socket) ->
             [{<<"timestamp">>, binary_to_list(term_to_binary(now()))},
              {<<"token">>, Token}
             ]},
-    Bin = mochijson2:encode(JSON),
-    ok = gen_tcp:send(State#state.socket, [Bin, 1]),
+    Bin = iolist_to_binary(mochijson2:encode(JSON)),
+    Size = byte_size(Bin),
+    ok = gen_tcp:send(State#state.socket, [<<Size:16>>, Bin]),
     {ok, State}.
 
 stop(State) ->
@@ -30,62 +31,47 @@ stop(State) ->
 
 forward(Bin, State)
   when is_binary(Bin) ->
-    ok = gen_tcp:send(State#state.socket, [Bin, 1]),
+    Size = byte_size(Bin),
+    ok = gen_tcp:send(State#state.socket, [<<Size:16>>, Bin]),
     {ok, State}.
 
 process(heartbeat, State) ->
-    ok = gen_tcp:send(State#state.socket, <<"PING", 1>>),
+    ok = gen_tcp:send(State#state.socket, <<4:16, "PING">>),
     {ok, keep_alive, State};
 
 process(ack, State) ->
-    ok = gen_tcp:send(State#state.socket, <<"ACK", 1>>),
+    ok = gen_tcp:send(State#state.socket, <<3:16, "ACK">>),
     {ok, keep_alive, State};
 
 process(<<>>, State) ->
     {ok, keep_alive, State};
 
-process(Bin, State) 
-  when is_binary(State#state.data),
-       is_binary(Bin) ->
-    process(list_to_binary([State#state.data, Bin]),
-            State#state{data = undefined});
-
-process(<<"<regular-socket/>", 0, Bin/binary>>, State) ->
-    process(Bin, State);
-
-process(Bin, State) 
-  when is_binary(Bin) ->
-    process(bin:split(0, Bin), State);
-
-process({more, Bin}, State) ->
-    {ok, keep_alive, State#state{data = Bin}};
-
-process({ok, <<>>, <<>>}, State) ->
+process(<<"<regular-socket/>">>, State) ->
+    {ok, keep_alive, State};
+    
+process(<<"PING">>, State) ->
+    {ok, keep_alive, State};
+    
+process(<<"PONG">>, State) ->
     {ok, keep_alive, State};
 
-process({ok, <<>>, Rest}, State) ->
-    process(Rest, State);
+process(<<"PUBLISH">>, State) ->
+    {ok, keep_alive, State#state{last_cmd=publish}};
 
-process({ok, <<"PING">>, Rest}, State) ->
-    process(Rest, State);
+process(Bin, State = #state{last_cmd=publish}) ->
+  JSON = {struct, [{<<"topic">>, Topic},
+                   {<<"event">>, _},
+                   {<<"message_id">>, _},
+                   {<<"data">>, _}
+                  ]} = mochijson2:decode(Bin),
+  topman:publish(JSON, Topic),
+  {ok, shutdown, State#state{last_cmd=undefined}};
 
-process({ok, <<"PONG">>, Rest}, State) ->
-    process(Rest, State);
-
-process({ok, <<"PUBLISH">>, Rest}, State) ->
-    JSON = {struct, [{<<"topic">>, Topic},
-                     {<<"event">>, _},
-                     {<<"message_id">>, _},
-                     {<<"data">>, _}
-                    ]} = mochijson2:decode(Rest),
-    topman:publish(JSON, Topic),
-    {ok, shutdown, State};
-
-process({ok, Bin, Rest}, State) ->
+process(Bin, State) ->
     {struct,
      [{<<"action">>, Action}, 
       {<<"data">>, Topic}
      ]} = mochijson2:decode(Bin),
     gen_server:cast(State#state.proxy, {Action, Topic}),
-    process(Rest, State).
+    {ok, keep_alive, State}.
 
