@@ -55,7 +55,7 @@ process(<<"<regular-socket/>", 0, Bin/binary>>, State) ->
 
 process(Bin, State) 
   when is_binary(Bin) ->
-    process(bin:split("\\000", Bin), State);
+    process(bin:split(0, Bin), State);
 
 process({more, Bin}, State) ->
     {ok, keep_alive, State#state{data = Bin}};

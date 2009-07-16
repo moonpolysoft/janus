@@ -136,7 +136,7 @@ handle_info({tcp, Sock, <<"ACK", 1>>}, Where, State) ->
 
 handle_info({tcp, Sock, Bin}, Where, State) ->
 %    inet:setopts(Sock, [{active, once}]),
-    case bin:split("\\001", Bin) of
+    case bin:split(1, Bin) of
         {more, Bin} ->
             {next_state, Where, State#state{data = Bin}};
         {ok, <<>>, <<>>} ->

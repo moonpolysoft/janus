@@ -110,9 +110,10 @@ wait(State, N, M)
             %% barrier exited
             Delta = timer:now_diff(now(), State#state.start),
             {Topic, Event, Data} = State#state.message,
+            io:format("publishing~n"),
             bot:publish(Topic, Event, Data, 
                         State#state.host, State#state.port),
-            wait(State#state{setup = Delta}, N, M);
+            wait(State#state{setup = Delta,start=now()}, N, M);
         X ->
             error_logger:error_report({unknown_message, X})
     end;
