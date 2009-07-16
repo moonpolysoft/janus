@@ -29,7 +29,7 @@
 
 -record(state, {
           topic,
-          subs = ets:new(subs, [set])
+          subs = []
          }).
 
 publish(Ref, Msg) ->
@@ -57,6 +57,7 @@ handle_cast(stop, State) ->
 handle_cast({subscribe, Pid, Socket}, State) ->
     %% automatically unsubscribe when dead
     Ref = erlang:monitor(process, Pid),
+    L = lists:keydelete(Pid, 1, State#state.subs),
     Pid ! ack,
     ets:insert(State#state.subs, {Pid, Ref, Socket}),
     {noreply, State};
@@ -65,7 +66,8 @@ handle_cast({unsubscribe, Pid}, State) ->
     unsubscribe1(Pid, State);
 
 handle_cast({publish, Msg}, State) ->
-    io:format("info: ~p~n", [ets:info(State#state.subs)]),
+    io:format("info: ~p~n", [length(State#state.subs)]),
+    Start = now(),
     {struct, L} = Msg,
     JSON = {struct, [{<<"timestamp">>, binary_to_list(term_to_binary(now()))}|L]},
     Bin = mochijson2:encode(JSON),
@@ -73,13 +75,10 @@ handle_cast({publish, Msg}, State) ->
     F = fun({_Pid, _, Socket}, _) ->
         gen_tcp:send(Socket, [Bin, 1])
       end,
-    F1 = fun() ->
-                 process_flag(priority, high),
-                 A = now(),
-                 ets:foldr(F, ignore, State#state.subs),
-                 io:format("time: ~p~n", [timer:now_diff(now(), A) / 1000])
-         end,
-    spawn_link(F1),
+    process_flag(priority, high),
+    ets:foldr(F, ignore, State#state.subs),
+    io:format("time: ~p~n", [timer:now_diff(now(), Start) / 1000]),
+    process_flag(priority, normal),
     {noreply, State};
 
 handle_cast(Event, State) ->
@@ -104,13 +103,12 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 unsubscribe1(Pid, State) ->
-    case ets:lookup(State#state.subs, Pid) of
-        [{_, Ref}] ->
-            erlang:demonitor(Ref),
-            ets:delete(State#state.subs, Pid);
-        _ ->
-            ok
+    case lists:keyfind(Pid, 1, State#state.subs) of
+        false ->
+            ok;
+        {Pid, Ref} ->
+            erlang:demonitor(Ref)
     end,
-    {noreply, State}.
-
+    L = lists:keydelete(Pid, 1, State#state.subs),
+    {noreply, State#state{subs = L}}.
 
