@@ -26,25 +26,22 @@
 
 
 split(Sep, Bin) 
-  when is_list(Sep),
-       is_binary(Bin) ->
-    SepBin = list_to_binary(Sep),
-    case split_binary_on(Bin, SepBin) of
+  when is_integer(Sep), is_binary(Bin) ->
+    case split_binary_on(Bin, Sep) of
         [Bin1, Bin2] when size(Bin1) < size(Bin) andalso size(Bin2) < size(Bin) ->
             {ok, Bin1, Bin2};
         [Bin1] ->
             {more, Bin1}
     end.
 
-split_binary_on(Bin, SepBin) ->
-  split_binary_on(Bin, SepBin, 0).
+split_binary_on(Bin, Sep) ->
+  split_binary_on(Bin, Sep, 0).
 
-split_binary_on(Bin, SepBin, Pos) when Pos + byte_size(SepBin) >= byte_size(Bin) ->
+split_binary_on(Bin, _, Pos) when Pos >= byte_size(Bin) ->
   [Bin];
 
-split_binary_on(Bin, SepBin, Pos) ->
-  Size = byte_size(SepBin),
+split_binary_on(Bin, Sep, Pos) ->
   case Bin of
-    <<Prefix:Pos/binary, SepBin:Size/binary, Rest/binary>> -> [Prefix, Rest];
-    Bin -> split_binary_on(Bin, SepBin, Pos+1)
+    <<Prefix:Pos/binary, Sep:8, Rest/binary>> -> [Prefix, Rest];
+    Bin -> split_binary_on(Bin, Sep, Pos+1)
   end.
