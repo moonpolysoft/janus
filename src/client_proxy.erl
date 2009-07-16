@@ -80,11 +80,11 @@ handle_cast({detach, Who}, State)
 handle_cast({detach, _}, State) ->
     {noreply, State};
 
-handle_cast({<<"subscribe">>, Topic}, State) ->
-    topman:subscribe(self(), Topic),
+handle_cast({<<"subscribe">>, Topic, Socket}, State) ->
+    topman:subscribe(self(), Topic, Socket),
     {noreply, State};
 
-handle_cast({<<"unsubscribe">>, Topic}, State) ->
+handle_cast({<<"unsubscribe">>, Topic, _}, State) ->
     topman:unsubscribe(self(), Topic),
     {noreply, State};
 

@@ -72,6 +72,6 @@ process(Bin, State) ->
      [{<<"action">>, Action}, 
       {<<"data">>, Topic}
      ]} = mochijson2:decode(Bin),
-    gen_server:cast(State#state.proxy, {Action, Topic}),
+    gen_server:cast(State#state.proxy, {Action, Topic, State#state.socket}),
     {ok, keep_alive, State}.
 
