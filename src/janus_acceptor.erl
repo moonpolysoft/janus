@@ -66,7 +66,8 @@ do_init(State) ->
             {packet, 0}, 
             {reuseaddr, true},
             {backlog, 1024},
-            {active, false}],
+            {active, false},
+            {keepalive, true}],
     case gen_tcp:listen(State#state.port, Opts) of
         {ok, ListenSocket} ->
             {ok, ListenSocket};

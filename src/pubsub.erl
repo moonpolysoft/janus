@@ -68,11 +68,10 @@ handle_cast({publish, Msg}, State) ->
     io:format("info: ~p~n", [ets:info(State#state.subs)]),
     {struct, L} = Msg,
     JSON = {struct, [{<<"timestamp">>, binary_to_list(term_to_binary(now()))}|L]},
-    Bin = iolist_to_binary(mochijson2:encode(JSON)),
+    Bin = mochijson2:encode(JSON),
     %% F = fun({Pid, _}, _) -> gen_server:cast(Pid, Msg1) end,
     F = fun({_Pid, _, Socket}, _) ->
-        Size = byte_size(Bin),
-        ok = gen_tcp:send(Socket, [<<Size:16>>, Bin])
+        gen_tcp:send(Socket, [Bin, 1])
       end,
     F1 = fun() ->
                  process_flag(priority, high),
