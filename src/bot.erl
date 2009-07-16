@@ -111,6 +111,8 @@ wait(State, N, M)
             Delta = timer:now_diff(now(), State#state.start),
             {Topic, Event, Data} = State#state.message,
             io:format("publishing~n"),
+            %{ok, ProfPid} = eprof:start(),
+            %eprof:start_profiling(lists:delete(ProfPid, erlang:processes())),
             bot:publish(Topic, Event, Data, 
                         State#state.host, State#state.port),
             wait(State#state{setup = Delta,start=now()}, N, M);
