@@ -14,11 +14,13 @@ h1. Bounty and rules
 
 2) Final proof has to be from EC2, one small instance for the server and one for the bots.
 
-3) {packet, 0}
+3) {packet, 0}, -smp disabled
 
 4) TCP, not UDP.
 
 5) No change of the protocol unless I agree to it. 
+
+Note that SMP is disabled since Amazon EC2 small instances have a single core.
 
 h1. Installation
 
@@ -76,6 +78,13 @@ net.inet.ip.portrange.first=10000
 grep ulimit ~/.bash_profile
 ulimit -n 30720 
 </code></pre>
+
+Also, you won't be able to go past 1024 clients with Erlang 
+on Mac OSX, even with kernel poll enabled (+K true). 
+
+Edit FD_SETSIZE in /usr/include/sys/select.h, i.e. change 
+__DARWIN_FD_SETSIZE in /usr/include/sys/_structs.h 
+and recompile Erlang with --enable-kernel-poll.
 
 On Linux:
 
